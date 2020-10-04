@@ -22,11 +22,15 @@ var ErrNotEnoughtBalance = errors.New("account not enough balance")
 //ErrPaymentNotFound - платеж не найден
 var ErrPaymentNotFound = errors.New("payment not found")
 
+// ErrFavoriteNotFound - Избранное не найдено
+var ErrFavoriteNotFound = errors.New("favorite not found")
+
 // Service представляет информацию о пользователе.
 type Service struct {
 	nextAccountID int64
 	accounts      []*types.Account
 	payments      []*types.Payment
+	favorites     []*types.Favorite
 }
 
 // RegisterAccount - метод для регистрация нового прользователя.
@@ -119,6 +123,16 @@ func (s *Service) FindPaymentByID(paymentID string) (*types.Payment, error) {
 	return payment, nil
 }
 
+// FindFavoriteByID ищем платёж по ID в Избранное
+func (s *Service) FindFavoriteByID(favoriteID string) (*types.Favorite, error) {
+	for _, favorite := range s.favorites {
+		if favorite.ID == favoriteID {
+			return favorite, nil
+		}
+	}
+	return nil, ErrFavoriteNotFound
+}
+
 //Deposit method
 func (s *Service) Deposit(accountID int64, amount types.Money) error {
 	if amount < 0 {
@@ -160,6 +174,42 @@ func (s *Service) Repeat(paymentID string) (*types.Payment, error) {
 	}
 
 	payment, err := s.Pay(pay.AccountID, pay.Amount, pay.Category)
+	if err != nil {
+		return nil, err
+	}
+
+	return payment, nil
+}
+
+// FavoritePayment добавления новых Избранных
+func (s *Service) FavoritePayment(paymentID string, name string) (*types.Favorite, error) {
+	payment, err := s.FindPaymentByID(paymentID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	favoriteID := uuid.New().String()
+	newFavorite := &types.Favorite{
+		ID:        favoriteID,
+		AccountID: payment.AccountID,
+		Name:      name,
+		Amount:    payment.Amount,
+		Category:  payment.Category,
+	}
+
+	s.favorites = append(s.favorites, newFavorite)
+	return newFavorite, nil
+}
+
+//PayFromFavorite для совершения платежа в Избранное
+func (s *Service) PayFromFavorite(favoriteID string) (*types.Payment, error) {
+	favorite, err := s.FindFavoriteByID(favoriteID)
+	if err != nil {
+		return nil, err
+	}
+
+	payment, err := s.Pay(favorite.AccountID, favorite.Amount, favorite.Category)
 	if err != nil {
 		return nil, err
 	}
