@@ -2,6 +2,9 @@ package wallet
 
 import (
 	"errors"
+	"log"
+	"os"
+	"strconv"
 
 	"github.com/Firdavs2002/wallet/pkg/types"
 	"github.com/google/uuid"
@@ -24,6 +27,9 @@ var ErrPaymentNotFound = errors.New("payment not found")
 
 // ErrFavoriteNotFound - Избранное не найдено
 var ErrFavoriteNotFound = errors.New("favorite not found")
+
+// ErrFileNotFound - файл не найден
+var ErrFileNotFound = errors.New("file not fount")
 
 // Service представляет информацию о пользователе.
 type Service struct {
@@ -215,4 +221,37 @@ func (s *Service) PayFromFavorite(favoriteID string) (*types.Payment, error) {
 	}
 
 	return payment, nil
+}
+
+// ExportToFile экспартирует данные аккаунтов в файл
+func (s *Service) ExportToFile(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		log.Print(err)
+		return ErrFileNotFound
+	}
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			log.Print(cerr)
+		}
+	}()
+
+	str := ""
+
+	for _, acc := range s.accounts {
+		ID := strconv.Itoa(int(acc.ID)) + ";"
+		phone := string(acc.Phone) + ";"
+		balance := strconv.Itoa(int(acc.Balance))
+
+		str += ID
+		str += phone
+		str += balance + "|"
+	}
+	_, err = file.Write([]byte(str))
+	if err != nil {
+		log.Print(err)
+		return ErrFileNotFound
+	}
+
+	return nil
 }
