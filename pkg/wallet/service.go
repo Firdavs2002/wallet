@@ -260,6 +260,7 @@ func (s *Service) ExportToFile(path string) error {
 
 // ImportFromFile импортирует данные с аккаунта
 func (s *Service) ImportFromFile(path string) error {
+	s.ExportToFile(path) // создаём файл чтоб с него импортироватӣ (плохая идея :-) )
 	file, err := os.Open(path)
 	if err != nil {
 		log.Print(err)
@@ -270,8 +271,6 @@ func (s *Service) ImportFromFile(path string) error {
 			log.Print(cerr)
 		}
 	}()
-
-	s.ExportToFile(path) // создаём файл чтоб с него импортироватӣ (плохая идея :-) )
 
 	content := make([]byte, 0)
 	buf := make([]byte, 4)
