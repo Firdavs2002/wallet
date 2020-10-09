@@ -10,4 +10,5 @@ func main() {
 	svc.RegisterAccount("+992000000002")
 	svc.RegisterAccount("+992000000003")
 	svc.ExportToFile("data/export.txt")
+	svc.ImportFromFile("data/import.txt")
 }

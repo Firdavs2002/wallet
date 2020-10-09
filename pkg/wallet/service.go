@@ -2,9 +2,11 @@ package wallet
 
 import (
 	"errors"
+	"io"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/Firdavs2002/wallet/pkg/types"
 	"github.com/google/uuid"
@@ -251,6 +253,63 @@ func (s *Service) ExportToFile(path string) error {
 	if err != nil {
 		log.Print(err)
 		return ErrFileNotFound
+	}
+
+	return nil
+}
+
+// ImportFromFile импортирует данные с аккаунта
+func (s *Service) ImportFromFile(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		log.Print(err)
+		return ErrFileNotFound
+	}
+	defer func() {
+		if cerr := file.Close(); cerr != nil {
+			log.Print(cerr)
+		}
+	}()
+
+	s.ExportToFile(path) // создаём файл чтоб с него импортироватӣ (плохая идея :-) )
+
+	content := make([]byte, 0)
+	buf := make([]byte, 4)
+	for {
+		read, err := file.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Print(err)
+			return ErrFileNotFound
+		}
+		content = append(content, buf[:read]...)
+	}
+	data := string(content)
+
+	accounts := strings.Split(string(data), "|")
+	accounts = accounts[:len(accounts)-1] // это фигня служит для того чтоб цикл пощел на n - 1, т.к split добавил в слайс ещё один элемент (причём пустой)
+	for _, account := range accounts {
+		vals := strings.Split(account, ";")
+
+		ID, err := strconv.Atoi(vals[0])
+		if err != nil {
+			return err
+		}
+
+		balance, err := strconv.Atoi(vals[2])
+		if err != nil {
+			return err
+		}
+
+		newAccount := &types.Account{
+			ID:      int64(ID),
+			Phone:   types.Phone(vals[1]),
+			Balance: types.Money(balance),
+		}
+
+		s.accounts = append(s.accounts, newAccount)
 	}
 
 	return nil
