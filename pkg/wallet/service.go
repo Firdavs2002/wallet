@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Firdavs2002/wallet/pkg/types"
 	"github.com/google/uuid"
@@ -323,7 +324,7 @@ func (s *Service) ImportFromFile(path string) error {
 //Export method
 func (s *Service) Export(dir string) error {
 	if len(s.accounts) > 0 {
-		file, err := os.OpenFile("../../"+dir+"/accounts.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		file, err := os.OpenFile(dir+"/accounts.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 
 		defer func() {
 			if cerr := file.Close(); cerr != nil {
@@ -341,7 +342,7 @@ func (s *Service) Export(dir string) error {
 		file.WriteString(str)
 	}
 	if len(s.payments) > 0 {
-		file, _ := os.OpenFile("../../"+dir+"/payments.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		file, err := os.OpenFile(dir+"/payments.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 
 		defer func() {
 			if cerr := file.Close(); cerr != nil {
@@ -360,7 +361,7 @@ func (s *Service) Export(dir string) error {
 	}
 
 	if len(s.favorites) > 0 {
-		file, _ := os.OpenFile("../../"+dir+"/favorites.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		file, err := os.OpenFile(dir+"/favorites.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 
 		defer func() {
 			if cerr := file.Close(); cerr != nil {
@@ -384,10 +385,10 @@ func (s *Service) Export(dir string) error {
 //Import method
 func (s *Service) Import(dir string) error {
 
-	_, err := os.Stat("../../" + dir + "/accounts.dump")
+	_, err := os.Stat(dir + "/accounts.dump")
 
 	if err == nil {
-		content, err := ioutil.ReadFile("../../" + dir + "/accounts.dump")
+		content, err := ioutil.ReadFile(dir + "/accounts.dump")
 		if err != nil {
 			return err
 		}
@@ -427,10 +428,10 @@ func (s *Service) Import(dir string) error {
 		}
 	}
 
-	_, err1 := os.Stat("../../" + dir + "/payments.dump")
+	_, err1 := os.Stat(dir + "/payments.dump")
 
 	if err1 == nil {
-		content, err := ioutil.ReadFile("../../" + dir + "/payments.dump")
+		content, err := ioutil.ReadFile(dir + "/payments.dump")
 		if err != nil {
 			return err
 		}
@@ -478,10 +479,10 @@ func (s *Service) Import(dir string) error {
 		}
 	}
 
-	_, err2 := os.Stat("../../" + dir + "/favorites.dump")
+	_, err2 := os.Stat(dir + "/favorites.dump")
 
 	if err2 == nil {
-		content, err := ioutil.ReadFile("../../" + dir + "/favorites.dump")
+		content, err := ioutil.ReadFile(dir + "/favorites.dump")
 		if err != nil {
 			return err
 		}
@@ -528,4 +529,48 @@ func (s *Service) Import(dir string) error {
 	}
 
 	return nil
+}
+
+//Sum ...
+func (s *Service) Sum(goroutines int) types.Money {
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+	sum := int64(0)
+	kol := 0
+	i := 0
+	if goroutines == 0 {
+		kol = len(s.payments)
+	} else {
+		kol = int(len(s.payments) / goroutines)
+	}
+	for i = 0; i < goroutines-1; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			val := int64(0)
+			payments := s.payments[index*kol : (index+1)*kol]
+			for _, payment := range payments {
+				val += int64(payment.Amount)
+			}
+			mu.Lock()
+			sum += val
+			mu.Unlock()
+
+		}(i)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		val := int64(0)
+		payments := s.payments[i*kol:]
+		for _, payment := range payments {
+			val += int64(payment.Amount)
+		}
+		mu.Lock()
+		sum += val
+		mu.Unlock()
+
+	}()
+	wg.Wait()
+	return types.Money(sum)
 }

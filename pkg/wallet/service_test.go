@@ -2,6 +2,8 @@ package wallet
 
 import (
 	"testing"
+
+	"github.com/Firdavs2002/wallet/pkg/types"
 )
 
 func TestService_RegisterAccount_success(t *testing.T) {
@@ -202,4 +204,42 @@ func TestService_Export_success(t *testing.T) {
 	if err != nil {
 		t.Errorf("method ExportToFile returned not nil error, err => %v", err)
 	}
+}
+
+func BenchmarkSumPayment_user(b *testing.B) {
+	var svc Service
+
+	account, err := svc.RegisterAccount("+992000000001")
+
+	if err != nil {
+		b.Errorf("method RegisterAccount returned not nil error, account => %v", account)
+	}
+
+	err = svc.Deposit(account.ID, 100_00)
+	if err != nil {
+		b.Errorf("method Deposit returned not nil error, error => %v", err)
+	}
+
+	_, err = svc.Pay(account.ID, 1, "Cafe")
+	_, err = svc.Pay(account.ID, 2, "Cafe")
+	_, err = svc.Pay(account.ID, 3, "Cafe")
+	_, err = svc.Pay(account.ID, 4, "Cafe")
+	_, err = svc.Pay(account.ID, 5, "Cafe")
+	_, err = svc.Pay(account.ID, 6, "Cafe")
+	_, err = svc.Pay(account.ID, 7, "Cafe")
+	_, err = svc.Pay(account.ID, 8, "Cafe")
+	_, err = svc.Pay(account.ID, 9, "Cafe")
+	_, err = svc.Pay(account.ID, 10, "Cafe")
+	_, err = svc.Pay(account.ID, 11, "Cafe")
+	if err != nil {
+		b.Errorf("method Pay returned not nil error, err => %v", err)
+	}
+
+	want := types.Money(66)
+
+	got := svc.Sum(2)
+	if want != got {
+		b.Errorf(" error, want => %v got => %v", want, got)
+	}
+
 }
