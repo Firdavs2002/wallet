@@ -531,8 +531,8 @@ func (s *Service) Import(dir string) error {
 	return nil
 }
 
-//Sum ...
-func (s *Service) Sum(goroutines int) types.Money {
+//SumPayments ...
+func (s *Service) SumPayments(goroutines int) types.Money {
 	wg := sync.WaitGroup{}
 	mu := sync.Mutex{}
 	sum := int64(0)

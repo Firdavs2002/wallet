@@ -237,7 +237,7 @@ func BenchmarkSumPayment_user(b *testing.B) {
 
 	want := types.Money(66)
 
-	got := svc.Sum(2)
+	got := svc.SumPayments(2)
 	if want != got {
 		b.Errorf(" error, want => %v got => %v", want, got)
 	}
