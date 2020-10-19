@@ -531,6 +531,65 @@ func (s *Service) Import(dir string) error {
 	return nil
 }
 
+// ExportAccountHistory ...
+func (s *Service) ExportAccountHistory(accountID int64) ([]types.Payment, error) {
+	acc, err := s.FindAccountByID(accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	var payments []types.Payment
+
+	for _, pay := range s.payments {
+		if pay.AccountID == acc.ID {
+			data := types.Payment{
+				ID:        pay.ID,
+				AccountID: pay.AccountID,
+				Amount:    pay.Amount,
+				Category:  pay.Category,
+				Status:    pay.Status,
+			}
+			payments = append(payments, data)
+		}
+	}
+	return payments, nil
+}
+
+//HistoryToFiles ...
+func (s *Service) HistoryToFiles(payments []types.Payment, dir string, records int) error {
+
+	str := ""
+
+	if len(payments) > 0 && len(payments) <= records {
+		file, _ := os.OpenFile(dir+"/payments.dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		defer file.Close()
+
+		for _, v := range payments {
+			str += fmt.Sprint(v.ID) + ";" + fmt.Sprint(v.AccountID) + ";" + fmt.Sprint(v.Amount) + ";" + fmt.Sprint(v.Category) + ";" + fmt.Sprint(v.Status) + "\n"
+		}
+		file.WriteString(str)
+	} else {
+		k := 0 // limit on record
+		t := 1 // count for files
+		var file *os.File
+		for _, v := range payments {
+			if k == 0 {
+				file, _ = os.OpenFile(dir+"/payments"+fmt.Sprint(t)+".dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+			}
+			k++
+			str = fmt.Sprint(v.ID) + ";" + fmt.Sprint(v.AccountID) + ";" + fmt.Sprint(v.Amount) + ";" + fmt.Sprint(v.Category) + ";" + fmt.Sprint(v.Status) + "\n"
+			_, err = file.WriteString(str)
+			if k == records { // если лимит был дастигнут, то обнулить "записи"
+				str = ""
+				t++
+				k = 0
+				file.Close()
+			}
+		}
+	}
+	return nil
+}
+
 //SumPayments ...
 func (s *Service) SumPayments(goroutines int) types.Money {
 	wg := sync.WaitGroup{}
@@ -573,4 +632,74 @@ func (s *Service) SumPayments(goroutines int) types.Money {
 	}()
 	wg.Wait()
 	return types.Money(sum)
+}
+
+//FilterPayments ...
+func (s *Service) FilterPayments(accountID int64, goroutines int) ([]types.Payment, error) {
+
+	account, err := s.FindAccountByID(accountID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+	kol := 0
+	i := 0
+	var ps []types.Payment
+	if goroutines == 0 {
+		kol = len(s.payments)
+	} else {
+		kol = int(len(s.payments) / goroutines)
+	}
+	for i = 0; i < goroutines-1; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			var pays []types.Payment
+			payments := s.payments[index*kol : (index+1)*kol]
+			for _, v := range payments {
+				if v.AccountID == account.ID {
+					pays = append(pays, types.Payment{
+						ID:        v.ID,
+						AccountID: v.AccountID,
+						Amount:    v.Amount,
+						Category:  v.Category,
+						Status:    v.Status,
+					})
+				}
+			}
+			mu.Lock()
+			ps = append(ps, pays...)
+			mu.Unlock()
+
+		}(i)
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		var pays []types.Payment
+		payments := s.payments[i*kol:]
+		for _, v := range payments {
+			if v.AccountID == account.ID {
+				pays = append(pays, types.Payment{
+					ID:        v.ID,
+					AccountID: v.AccountID,
+					Amount:    v.Amount,
+					Category:  v.Category,
+					Status:    v.Status,
+				})
+			}
+		}
+		mu.Lock()
+		ps = append(ps, pays...)
+		mu.Unlock()
+
+	}()
+	wg.Wait()
+	if len(ps) == 0 {
+		return nil, nil
+	}
+	return ps, nil
 }
