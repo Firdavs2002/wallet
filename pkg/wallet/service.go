@@ -781,7 +781,7 @@ func (s *Service) SumPaymentsWithProgress() <-chan types.Progress {
 	ch := make(chan types.Progress)
 	for i := 0; i < goroutines; i++ {
 		wg.Add(1)
-		go func(ch chan<- types.Progress, amountOfMoney []types.Money, part int) {
+		go func(ch chan<- types.Progress, amountOfMoney []types.Money) {
 			sum := 0
 			defer wg.Done()
 			for _, val := range amountOfMoney {
@@ -792,7 +792,7 @@ func (s *Service) SumPaymentsWithProgress() <-chan types.Progress {
 				Part:   len(amountOfMoney),
 				Result: types.Money(sum),
 			}
-		}(ch, amountOfMoney, i)
+		}(ch, amountOfMoney)
 	}
 
 	go func() {
