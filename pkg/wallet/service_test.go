@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"log"
 	"testing"
 
 	"github.com/Firdavs2002/wallet/pkg/types"
@@ -252,26 +253,44 @@ func BenchmarkSumPayment_user(b *testing.B) {
 		b.Errorf("method Deposit returned not nil error, error => %v", err)
 	}
 
-	_, err = svc.Pay(account.ID, 1, "Cafe")
-	_, err = svc.Pay(account.ID, 2, "Cafe")
-	_, err = svc.Pay(account.ID, 3, "Cafe")
-	_, err = svc.Pay(account.ID, 4, "Cafe")
-	_, err = svc.Pay(account.ID, 5, "Cafe")
-	_, err = svc.Pay(account.ID, 6, "Cafe")
-	_, err = svc.Pay(account.ID, 7, "Cafe")
-	_, err = svc.Pay(account.ID, 8, "Cafe")
-	_, err = svc.Pay(account.ID, 9, "Cafe")
-	_, err = svc.Pay(account.ID, 10, "Cafe")
-	_, err = svc.Pay(account.ID, 11, "Cafe")
-	if err != nil {
-		b.Errorf("method Pay returned not nil error, err => %v", err)
+	for i := types.Money(1); i <= 10; i++ {
+		if _, err = svc.Pay(account.ID, i, "Cafe"); err != nil {
+			b.Errorf("method Pay returned not nil error, err => %v", err)
+		}
 	}
 
-	want := types.Money(66)
+	want := types.Money(55)
 
-	got := svc.SumPayments(2)
+	got := svc.SumPayments(5)
 	if want != got {
 		b.Errorf(" error, want => %v got => %v", want, got)
 	}
 
+}
+
+func BenchmarkSumPaymentsWithProgress_user(b *testing.B) {
+	var svc Service
+
+	account, err := svc.RegisterAccount("+992000000001")
+	if err != nil {
+		b.Errorf("method RegisterAccount returned not nil error, account => %v", account)
+	}
+
+	err = svc.Deposit(account.ID, 10000000_0000000)
+	if err != nil {
+		b.Errorf("method Deposit returned not nil error, error => %v", err)
+	}
+
+	for i := 0; i < 1000; i++ {
+		svc.Pay(account.ID, types.Money(i), "Cafe")
+	}
+
+	ch := svc.SumPaymentsWithProgress()
+
+	s, ok := <-ch
+	if !ok {
+		b.Errorf("method SumPaymentsWithProgress not closed => %v", ok)
+	}
+
+	log.Println(s)
 }

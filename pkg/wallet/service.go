@@ -412,8 +412,6 @@ func (s *Service) Import(dir string) error {
 			flag := true
 			for _, v := range s.accounts {
 				if v.ID == id {
-					v.Phone = types.Phone(strArrAcount[1])
-					v.Balance = types.Money(balance)
 					flag = false
 				}
 			}
@@ -459,10 +457,6 @@ func (s *Service) Import(dir string) error {
 			flag := true
 			for _, v := range s.payments {
 				if v.ID == id {
-					v.AccountID = aid
-					v.Amount = types.Money(amount)
-					v.Category = types.PaymentCategory(strArrAcount[3])
-					v.Status = types.PaymentStatus(strArrAcount[4])
 					flag = false
 				}
 			}
@@ -510,9 +504,6 @@ func (s *Service) Import(dir string) error {
 			flag := true
 			for _, v := range s.favorites {
 				if v.ID == id {
-					v.AccountID = aid
-					v.Amount = types.Money(amount)
-					v.Category = types.PaymentCategory(strArrAcount[3])
 					flag = false
 				}
 			}
@@ -647,7 +638,7 @@ func (s *Service) FilterPayments(accountID int64, goroutines int) ([]types.Payme
 	mu := sync.Mutex{}
 	kol := 0
 	i := 0
-	var ps []types.Payment
+	ps := []types.Payment{}
 	if goroutines == 0 {
 		kol = len(s.payments)
 	} else {
@@ -671,7 +662,7 @@ func (s *Service) FilterPayments(accountID int64, goroutines int) ([]types.Payme
 				}
 			}
 			mu.Lock()
-			ps = append(ps, pays...)
+			ps = pays[:]
 			mu.Unlock()
 
 		}(i)
@@ -693,7 +684,7 @@ func (s *Service) FilterPayments(accountID int64, goroutines int) ([]types.Payme
 			}
 		}
 		mu.Lock()
-		ps = append(ps, pays...)
+		ps = pays
 		mu.Unlock()
 
 	}()
@@ -737,7 +728,7 @@ func (s *Service) FilterPaymentsByFn(filter func(payment types.Payment) bool, go
 				}
 			}
 			mu.Lock()
-			ps = append(ps, pays...)
+			ps = pays[:]
 			mu.Unlock()
 
 		}(i)
@@ -762,7 +753,7 @@ func (s *Service) FilterPaymentsByFn(filter func(payment types.Payment) bool, go
 			}
 		}
 		mu.Lock()
-		ps = append(ps, pays...)
+		ps = pays[:]
 		mu.Unlock()
 
 	}()
@@ -771,4 +762,43 @@ func (s *Service) FilterPaymentsByFn(filter func(payment types.Payment) bool, go
 		return nil, nil
 	}
 	return ps, nil
+}
+
+// SumPaymentsWithProgress суммируем и делим все платежи по кусочком
+func (s *Service) SumPaymentsWithProgress() <-chan types.Progress {
+	size := 100_0000
+
+	amountOfMoney := []types.Money{}
+	for _, pay := range s.payments {
+		amountOfMoney = append(amountOfMoney, pay.Amount)
+	}
+
+	wg := sync.WaitGroup{}
+	goroutines := (len(amountOfMoney) + 1) / size
+	if goroutines <= 0 {
+		goroutines = 1
+	}
+	ch := make(chan types.Progress)
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(ch chan<- types.Progress, amountOfMoney []types.Money, part int) {
+			sum := 0
+			defer wg.Done()
+			for _, val := range amountOfMoney {
+				sum += int(val)
+
+			}
+			ch <- types.Progress{
+				Part:   len(amountOfMoney),
+				Result: types.Money(sum),
+			}
+		}(ch, amountOfMoney, i)
+	}
+
+	go func() {
+		defer close(ch)
+		wg.Wait()
+	}()
+
+	return ch
 }
